@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using System.Linq;
+using UnityEngine.SceneManagement;
 
 public class pokerManagerNew : MonoBehaviour
 {
@@ -11,7 +12,8 @@ public class pokerManagerNew : MonoBehaviour
     public Image[] playerCards;
     public Image[] AICards;
     public Image[] CenterCards;
-
+    public GameObject[] CenterCardsH;
+    public GameObject[] movingCards;
     public String[] playerCardsString;
     public String[] CenterCardsString;
     public String[] AICardsString;
@@ -57,8 +59,11 @@ public class pokerManagerNew : MonoBehaviour
     public bool game;
 
     public int[] playerHand;
+    public int[] playerHandSeq;
     public int[] AIhand;
+    public int[] AIhandSeq;
     public int[] centerhand;
+    public int[] centerhandSeq;
 
     public int playerHandScore;
     public int AIHandscore;
@@ -66,7 +71,15 @@ public class pokerManagerNew : MonoBehaviour
  
     public int isFirstTime;
 
+    public GameObject winCanvas;
+    public GameObject loseCanvas;
+    public GameObject drawCanvas;
 
+    public Text WinT;
+    public Text LoseT;
+
+    public bool fold;
+    public bool seqFlush;
     public void LoadGame()
     {
        
@@ -103,6 +116,9 @@ public class pokerManagerNew : MonoBehaviour
        
 
         LoadGame();
+        winCanvas.SetActive(false);
+        loseCanvas.SetActive(false);
+        drawCanvas.SetActive(false);
         loadedCards = new int[11];
         playerCardsString = new String[2];
         playerHand = new int[2];
@@ -118,6 +134,8 @@ public class pokerManagerNew : MonoBehaviour
         firstTurn = true;
         secondTurn = true;
         game = true;
+        fold = false;
+        seqFlush = false;
         CardTypes = new String[] { "cardSpades", "cardDiamonds", "cardHearts", "cardClubs" };
         LoadCards();
         randomCardP();
@@ -135,6 +153,9 @@ public class pokerManagerNew : MonoBehaviour
             Deck[x] = (Sprite)loadedCards[x];
         }
     }
+    /// <summary>
+    /// Delay it till the moving cards have arrived
+    /// </summary>
     public void randomCardP()
     {
         //Player
@@ -206,26 +227,48 @@ public class pokerManagerNew : MonoBehaviour
         int card = 0;
         for (int i = 4; i < 7; i++)
         {
+            CenterCardsH[card].SetActive(true);
             CenterCards[card].sprite = Deck[loadedCards[i]];
+            movingCards[i].SetActive(true);
             card++;
+        }
+        for (int i = 0; i < 3; i++)
+        {
+            //movingCards
         }
     }
     public void show4thCenterCard()
     {
-
+        movingCards[7].SetActive(true);
+        CenterCardsH[3].SetActive(true);
         CenterCards[3].sprite = Deck[loadedCards[7]];
         Fourcards = false;
         CenterCardsString[3] = Deck[loadedCards[7]].name.ToString();
         for (int jj = 0; jj < 4; jj++)
         {
             CenterCardsStringHolder[3] = (String)CenterCardsStringHolder[3].Replace((String)CardTypes[jj], "");
+            movingCards[3].SetActive(true);
         }
     }
     public void show5thCenterCard()
     {
+        movingCards[0].GetComponent<Animator>().SetBool("isFinish", true);
+        movingCards[1].GetComponent<Animator>().SetBool("isFinished", true);
+        //movingCards[1].GetComponent<Animator>().Play("AICARDBYE");
 
+        CenterCardsH[5].SetActive(true);
+        CenterCardsH[6].SetActive(true); 
+        CenterCardsH[7].SetActive(true);
+        CenterCardsH[8].SetActive(true);
+
+
+
+        movingCards[8].SetActive(true);
+        movingCards[8].SetActive(true);
+        CenterCardsH[4].SetActive(true);
         CenterCards[4].sprite = Deck[loadedCards[8]];
         CenterCardsString[4] = Deck[loadedCards[8]].name.ToString();
+        movingCards[5].SetActive(true);
         Fivecards = false;
         player = false;
         game = false;
@@ -382,9 +425,11 @@ public class pokerManagerNew : MonoBehaviour
         {
             //PlayerCoins -= 50;
             //playerCoinsT.text = PlayerCoins.ToString();
-
-            PlayerBidOfferCoins += 50;
-            PlayerBidOfferT.text = "Raise: " + PlayerBidOfferCoins;
+            if (PlayerBidOfferCoins < PlayerCoins)
+            {
+                PlayerBidOfferCoins += 50;
+                PlayerBidOfferT.text = "Raise: " + PlayerBidOfferCoins;
+            }
         }
 
     }
@@ -392,12 +437,15 @@ public class pokerManagerNew : MonoBehaviour
     {
         if (player == true)
         {
-            //PlayerCoins += 50;
-            //playerCoinsT.text = PlayerCoins.ToString();
-            PlayerBidOfferCoins -= 50;
-            playerCoinsT.text = PlayerCoins.ToString();
+            if (PlayerBidOfferCoins > 0)
+            {
+                //PlayerCoins += 50;
+                //playerCoinsT.text = PlayerCoins.ToString();
+                PlayerBidOfferCoins -= 50;
+                playerCoinsT.text = PlayerCoins.ToString();
 
-            PlayerBidOfferT.text = "Raise: " + PlayerBidOfferCoins;
+                PlayerBidOfferT.text = "Raise: " + PlayerBidOfferCoins;
+            }
         }
     }
     public void startRaiseBidP()
@@ -484,6 +532,10 @@ public class pokerManagerNew : MonoBehaviour
             else if (choise > 7)
             {
                 Debug.Log("FOLD");
+                fold = true;
+                PlayerCoins += InBidCoins;
+                saveGame();
+                Invoke("showWinCanvas", 2f);
             }
         }
     }
@@ -554,6 +606,8 @@ public class pokerManagerNew : MonoBehaviour
             }
         }
     }
+
+    
     public void AIDecisions()
     {
         //matching two
@@ -616,8 +670,6 @@ public class pokerManagerNew : MonoBehaviour
             Debug.Log("Checked");
             raiseBidAI(i);
         }
-
-
     }
     public void resultMaxValue()
     {
@@ -748,76 +800,141 @@ public class pokerManagerNew : MonoBehaviour
 
 
         }
-        for (int f = 0; f < 2; f++)
+        playerHand = Array.ConvertAll<string, int>(PlayerCardsStringHolder, int.Parse);
+        centerhand = Array.ConvertAll<string, int>(CenterCardsStringHolder, int.Parse);
+        AIhand = Array.ConvertAll<string, int>(AICardsStringHolder, int.Parse);
+
+        AIhandSeq = centerhand.Concat(centerhand).ToArray();
+        AIhandSeq = AIhandSeq.OrderBy(x => x).ToArray();
+        playerHandSeq = playerHand.Concat(centerhand).ToArray();
+        playerHandSeq = playerHandSeq.OrderBy(x => x).ToArray();
+        int seq = 0;
+        //if sequence found (PLAYER)-------------------------------------------------------------------------------------------------
+        for (int i = 0; i < playerHandSeq.Length - 1; i++)
         {
-            for (int ff = 0; ff < 5; ff++)
+            if (playerHandSeq[i] == (playerHandSeq[i + 1] - 1))
             {
-                if (AICardsStringHolder[f] == CenterCardsStringHolder[ff])
+                seq += 1;
+                Debug.Log("Sequence Found" + i);
+                if (seq >= 5)
                 {
-                    AIResult++;
-
-
-                }
-                else
-                {
-
+                    seqFlush = true;
+                    Debug.Log("Sequence Flush");
+                    PlayerCoins += InBidCoins;
+                    saveGame();
+                    Invoke("showWinCanvas", 2f);
                 }
             }
-
-        }
-        for (int f = 0; f < 2; f++)
-        {
-            for (int ff = 0; ff < 5; ff++)
+            else
             {
-                if (PlayerCardsStringHolder[f] == CenterCardsStringHolder[ff])
+                seq = 0;
+            }
+        }
+        //if sequence found (AI)-------------------------------------------------------------------------------------------------
+        for (int i = 0; i < AIhandSeq.Length - 1; i++)
+        {
+            if (AIhandSeq[i] == (AIhandSeq[i + 1] - 1))
+            {
+                seq += 1;
+                Debug.Log("Sequence Found" + i);
+                if (seq >= 5)
                 {
-                    PlayerResult++;
-
-
-                }
-                else
-                {
-
+                    seqFlush = true;
+                    Debug.Log("Sequence Flush");
+                    AICoins += InBidCoins;
+                    saveGame();
+                    Invoke("showLoseCanvas", 2f);
                 }
             }
-
-        }
-
-        Debug.Log("AIResult: " + AIResult);
-        Debug.Log("PlayerResult: " + PlayerResult);
-        if (PlayerResult > AIResult)
-        {
-            Debug.Log("Player WON");
-            PlayerCoins += InBidCoins;
-            saveGame();
-        }
-        else if (PlayerResult < AIResult)
-        {
-            Debug.Log("AI WON");
-            AICoins += InBidCoins;
-            saveGame();
-        }
-        else if (PlayerResult == AIResult)
-        {
-            /*
-            if (PlayerResult != 0)
+            else
             {
-                Debug.Log("Draw");
-                if (isFirstTime == 0)
+                seq = 0;
+            }
+        }
+        //if NO sequence found-------------------------------------------------------------------------------------------------
+        if (seq < 5)
+        {
+            int aisss;
+            //if Matching found-------------------------------------------------------------------------------------------------
+            for (int f = 0; f < 2; f++)
+            {
+                for (int ff = 0; ff < 5; ff++)
                 {
-                    PlayerCoins = PlayerPrefs.GetInt("pcoins");
-                    AICoins = PlayerPrefs.GetInt("aicoins");
+                    if (AICardsStringHolder[f] == CenterCardsStringHolder[ff])
+                    {
+                        AIResult++;
+                        aisss = System.Convert.ToInt32(AICardsStringHolder[f]);
+                        AIResult += aisss;
+                        Debug.Log("AISSS: " + aisss);
+
+                    }
+                    else
+                    {
+
+                    }
                 }
-            }*/
-            saveGame();
-            checkGreaterHand();
+
+            }
+            int playersss;
+            for (int f = 0; f < 2; f++)
+            {
+                for (int ff = 0; ff < 5; ff++)
+                {
+                    if (PlayerCardsStringHolder[f] == CenterCardsStringHolder[ff])
+                    {
+                        playersss = System.Convert.ToInt32(PlayerCardsStringHolder[f]);
+                        PlayerResult+= playersss;
+                        Debug.Log("PLAYERSSS: " + playersss);
+
+                    }
+                    else
+                    {
+
+                    }
+                }
+
+            }
+
+            Debug.Log("AIResult: " + AIResult);
+            Debug.Log("PlayerResult: " + PlayerResult);
+            if (PlayerResult > AIResult)
+            {
+                Debug.Log("Player WON");
+                PlayerCoins += InBidCoins;
+                saveGame();
+                Invoke("showWinCanvas", 2f);
+
+            }
+            else if (PlayerResult < AIResult)
+            {
+                Debug.Log("AI WON");
+                AICoins += InBidCoins;
+                saveGame();
+                Invoke("showLoseCanvas", 2f);
+            }
+            else if (PlayerResult == AIResult)
+            {
+                /*
+                if (PlayerResult != 0)
+                {
+                    Debug.Log("Draw");
+                    if (isFirstTime == 0)
+                    {
+                        PlayerCoins = PlayerPrefs.GetInt("pcoins");
+                        AICoins = PlayerPrefs.GetInt("aicoins");
+                    }
+                }*/
+                saveGame();
+                checkGreaterHand();
+            }
         }
     }
     public void checkGreaterHand()
     {
-        playerHand = Array.ConvertAll<string, int>(PlayerCardsStringHolder, int.Parse);
-        
-        
+
+
+        //if no sequence found
+        //if no Matching found-------------------------------------------------------------------------------------------------
         for (int i = 0; i < playerHand.Length; i++)
         {
             playerHandScore += playerHand[i];
@@ -827,6 +944,7 @@ public class pokerManagerNew : MonoBehaviour
 
 
         AIhand = Array.ConvertAll<string, int>(AICardsStringHolder, int.Parse);
+        AIhand = AIhand.OrderBy(x => x).ToArray();
         for (int i = 0; i < AIhand.Length; i++)
         {
             AIHandscore += AIhand[i];
@@ -839,12 +957,14 @@ public class pokerManagerNew : MonoBehaviour
             Debug.Log("Player WON by Hand");
             PlayerCoins += InBidCoins;
             saveGame();
+            Invoke("showWinCanvas", 2f);
 
         }
          else if (playerHandScore < AIHandscore)
             {
                 Debug.Log("AI WON by Hand");
             AICoins += InBidCoins;
+            Invoke("showLoseCanvas", 2f);
             saveGame();
 
         }
@@ -862,7 +982,58 @@ public class pokerManagerNew : MonoBehaviour
             }
 
             saveGame();
-
+            Invoke("showDrawCanvas", 2f);
         }
+    }
+    public void showWinCanvas()
+    {
+        winCanvas.SetActive(true);
+        if(fold == true)
+        {
+            WinT.text = "Bluff Worked, AI FOLDs and " + InBidCoins + " IN THE BAG!";
+        }
+        else if (seqFlush == true)
+        {
+            WinT.text = "Sequence FLUSH! " + InBidCoins + " IN THE BAG!";
+        }
+        else
+        {
+            WinT.text = InBidCoins + " IN THE BAG!";
+        }
+       
+
+    }public void showLoseCanvas()
+    {
+
+        loseCanvas.SetActive(true);
+        
+        if (fold == true)
+        {
+            LoseT.text = "You choosed to FOLD and " + InBidCoins + " Lost!";
+        }
+        else if (seqFlush == true)
+        {
+            LoseT.text = "AI Sequence FLUSH! " + InBidCoins + " LOST!";
+        }
+        else
+        {
+            LoseT.text = InBidCoins + " LOST!";
+        }
+    }
+    public void showDrawCanvas()
+    {
+        drawCanvas.SetActive(true);
+    }
+    public void PlayerFold()
+    {
+        Debug.Log("AI WON by Hand");
+        AICoins += InBidCoins;
+        fold = true;
+        Invoke("showLoseCanvas", 2f);
+        saveGame();
+    }
+    public void RestartScene()
+    {
+        SceneManager.LoadScene("Texasholdem");
     }
 }
